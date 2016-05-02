@@ -1,6 +1,6 @@
 from horton import *
 import numpy as np
-from wrapper_horton import wrapper_horton
+from wrapper_horton import HortonData
 from quasi import QuasiTransformation, project
 
 def horton_energy(fchk_file):
@@ -74,8 +74,61 @@ def horton_energy(fchk_file):
     #Fock Matrix (in atomic basis)
     fock_ab_ab = fock_alpha._array
     mo_energy = exp_mo.energies
-    occupation = exp_alpha.occupations.astype(bool)
+    occupation = exp_alpha.occupations
+    print fock_ab_ab
     return mo_energy, fock_ab_ab, coeffs_ab_mo, occupation
+
+def horton_energy2(fchk_file):
+    '''
+    Parameters
+    ----------
+    fchk_file: str
+        File name of the formatted chk file that contains the molecular orbital
+        and atomic basis information
+
+    Returns
+    ------
+    fock_ab_ab:list of numpy.ndarray(K,K)
+        Converged Fock matrix from Hartree-Fock calculation
+    mo_energy: np.ndarray(N)
+        Molecular orbital energies
+    coeffs_ab_mo: list of np.ndarray(K,N)
+        Transformation matrix from atomic basis to molecular orbitals
+    occupation: np.ndarray of {bool, int}
+        The indices of the molecular orbitals
+    '''
+    # Get integrals from horton
+    np.set_printoptions(linewidth=200)
+
+    # Data from fchk file
+    mol = IOData.from_file(fchk_file)
+    coeff_ab_mo = mol.exp_alpha.coeffs
+    occs = mol.exp_alpha.occupations
+    density_ab_ab = (coeff_ab_mo*occs).dot(coeff_ab_mo.T)
+
+    # Get basis set
+    obasis = mol.obasis
+
+    # Integals in atomic basis
+    lf = DenseLinalgFactory(obasis.nbasis)
+    olp_ab_ab = obasis.compute_overlap(lf)._array
+
+    kin_ab_ab = obasis.compute_kinetic(lf)._array
+    na_ab_ab = obasis.compute_nuclear_attraction(mol.coordinates, mol.pseudo_numbers, lf)._array
+    core_ab = kin_ab_ab + na_ab_ab
+
+    er_ab_ab = obasis.compute_electron_repulsion(lf)._array
+    part_one = np.einsum('ijkl,jl->ik', er_ab_ab, density_ab_ab)
+    part_two = np.einsum('ijlk,jl->ik', er_ab_ab, density_ab_ab)
+
+    fock_ab = core_ab + 2*part_one - part_two
+    return fock_ab
+
+    # coulomb = np.einsum('ijkl->ik', er_ab_ab)
+    # exchange = np.einsum('ijlk->ik', er_ab_ab)
+    # fock = core_ab + 2*coulomb - exchange
+    # return coeff_ab_mo.T.dot(fock).dot(coeff_ab_mo)
+
 
 def fchk_energy(fchk_file):
     '''
@@ -127,17 +180,30 @@ def quambo_energy(fchk_file, cao_basis_file):
     fock_quambo_quambo: list of numpy.ndarray(N,N)
         Orbital energies in QUAMBO basis
     '''
-    horton_data = wrapper_horton(fchk_file, cao_basis_file)
-    coeff_ab_mo_sep, olp_ab_ab_sep, olp_cao_ab_sep, olp_cao_cao_sep, occupations_sep, basis_map_sep = horton_data
-    quasi = QuasiTransformation(coeff_ab_mo_sep[0],
-                                olp_ab_ab_sep[0],
-                                olp_cao_ab_sep[0],
-                                olp_cao_cao_sep[0],
-                                occupations_sep[0].astype(bool))
-    coeff_ab_quambo = quasi.quambo()
-    '''fock_quambo_quambo is QUAMBO energy
-    '''
-    fock_quambo_quambo = np.diag(coeff_ab_quambo.T.dot(horton_energy(fchk_file)[1]).dot(coeff_ab_quambo))
+    hd = HortonData(fchk_file, cao_basis_file)
+    coeff_ab_mo_sep = hd.coeff_ab_mo_sep
+    olp_ab_ab_sep = hd.olp_ab_ab_sep
+    olp_cao_ab_sep = hd.olp_cao_ab_sep
+    olp_cao_cao_sep = hd.olp_cao_cao_sep
+    occupations_sep = hd.occupations_sep
+    for (coeff_ab_mo,
+         olp_ab_ab,
+         olp_cao_ab,
+         olp_cao_cao,
+         occupations) in zip(coeff_ab_mo_sep,
+                             olp_ab_ab_sep,
+                             olp_cao_ab_sep,
+                             olp_cao_cao_sep,
+                             occupations_sep):
+        quasi = QuasiTransformation(coeff_ab_mo,
+                                    olp_ab_ab,
+                                    olp_cao_ab,
+                                    olp_cao_cao,
+                                    occupations.astype(bool))
+        coeff_ab_quambo = quasi.quambo()
+        '''fock_quambo_quambo is QUAMBO energy
+        '''
+        fock_quambo_quambo = coeff_ab_quambo.T.dot(horton_energy(fchk_file)[1]).dot(coeff_ab_quambo)
     # occupations = np.array([i for i in occupations_sep[0] if i>0])*2
     # print occupations_sep
 
@@ -154,6 +220,18 @@ if __name__ == '__main__':
     print '+'*50
     print "QUAMBO ENERGY"
     print quambo_energy('ch3_rohf_sto3g_g03.fchk', 'aambs.gbs')[1]
+    print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    mol = IOData.from_file('ch3_rohf_sto3g_g03.fchk')
+    coeff_ab_mo = mol.exp_alpha.coeffs
+    test1 = horton_energy2('ch3_rohf_sto3g_g03.fchk')
+    test1 = coeff_ab_mo.T.dot(test1).dot(coeff_ab_mo)
+    print np.diag(test1),'x'*10
+    print np.sum(np.abs(test1-np.diag(np.diag(test1))))
+    # print fchk_energy('ch3_rohf_sto3g_g03.fchk')
+    test2 = horton_energy('ch3_rohf_sto3g_g03.fchk')[1]
+    test2 = coeff_ab_mo.T.dot(test2).dot(coeff_ab_mo)
+    print np.diag(test2),'y'*10
+    print np.sum(np.abs(test2-np.diag(np.diag(test2))))
     #print type(fchk_energy('ch3_rohf_sto3g_g03.fchk'))
 # diagonalized quambo energy
 # [-19.22095484  -5.31946042  -5.05850352  -4.97057566  -5.0586551   -4.04029956  -4.04029956  -4.04012546]
