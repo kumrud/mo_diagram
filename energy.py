@@ -169,14 +169,14 @@ def quambo_energy(fchk_file, cao_basis_file):
     return fock_quambo_quambo
 
 if __name__ == '__main__':
-    mol = IOData.from_file('ch4_sto6g.fchk')
+    mol = IOData.from_file('ch3_rohf_sto3g_g03.fchk')
     coeff_ab_mo = mol.exp_alpha.coeffs
     energies = mol.exp_alpha.energies
-    test1 = fock_integrals('ch4_sto6g.fchk')
+    test1 = fock_integrals('ch3_rohf_sto3g_g03.fchk')
     test1 = coeff_ab_mo.T.dot(test1).dot(coeff_ab_mo)
     print np.diag(test1),'From the integrals'
     # print np.sum(np.abs(test1-np.diag(np.diag(test1))))
-    test2 = fock_horton('ch4_sto6g.fchk')
+    test2 = fock_horton('ch3_rohf_sto3g_g03.fchk')
     test2 = coeff_ab_mo.T.dot(test2).dot(coeff_ab_mo)
     print np.diag(test2),'From HORTON'
     # print np.sum(np.abs(test2-np.diag(np.diag(test2))))
