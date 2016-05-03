@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import pylab as ply
 from energy import horton_energy, fchk_energy, quambo_energy
 
-y_energy = quambo_energy('ch3_rohf_sto3g_g03.fchk', 'aambs.gbs')
+y_energy = quambo_energy('ch4_def2qzvpd.fchk', 'aambs.gbs')
 print y_energy
 
-occupation = horton_energy('ch3_rohf_sto3g_g03.fchk')[3]
+occupation = horton_energy('ch4_def2qzvpd.fchk')[3]
 print occupation
 
 # in case of degeneracy give different x values to MOs
