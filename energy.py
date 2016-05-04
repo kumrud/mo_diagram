@@ -168,21 +168,38 @@ def quambo_energy(fchk_file, cao_basis_file):
 
     return fock_quambo_quambo
 
-if __name__ == '__main__':
-    mol = IOData.from_file('ch3_rohf_sto3g_g03.fchk')
+def test_fock():
+    mol = IOData.from_file('ch4_hf.fchk')
     coeff_ab_mo = mol.exp_alpha.coeffs
     energies = mol.exp_alpha.energies
-    test1 = fock_integrals('ch3_rohf_sto3g_g03.fchk')
+
+    lf = DenseLinalgFactory(mol.obasis.nbasis)
+    olp = mol.obasis.compute_overlap(lf)._array
+
+    test1 = fock_integrals('ch4_hf.fchk')
+    # print np.sum(np.abs((test1).dot(coeff_ab_mo) - olp.dot(coeff_ab_mo).dot(np.diag(energies))))
     test1 = coeff_ab_mo.T.dot(test1).dot(coeff_ab_mo)
     print np.diag(test1),'From the integrals'
     # print np.sum(np.abs(test1-np.diag(np.diag(test1))))
-    test2 = fock_horton('ch3_rohf_sto3g_g03.fchk')
+
+    test2 = fock_horton('ch4_hf.fchk', run_scf=False)
+    # print np.sum(np.abs((test2).dot(coeff_ab_mo) - olp.dot(coeff_ab_mo).dot(np.diag(energies))))
     test2 = coeff_ab_mo.T.dot(test2).dot(coeff_ab_mo)
-    print np.diag(test2),'From HORTON'
+    print np.diag(test2),'From HORTON, No SCF'
     # print np.sum(np.abs(test2-np.diag(np.diag(test2))))
-    test3 = fock_numerical(coeff_ab_mo, mol.exp_alpha.energies)
+
+    test3 = fock_horton('ch4_hf.fchk', run_scf=True)
+    # print np.sum(np.abs((test3).dot(coeff_ab_mo) - olp.dot(coeff_ab_mo).dot(np.diag(energies))))
     test3 = coeff_ab_mo.T.dot(test3).dot(coeff_ab_mo)
-    print np.diag(test3), 'From artificial Fock'
+    print np.diag(test3),'From HORTON, Yes SCF'
+    # print np.sum(np.abs(test3-np.diag(np.diag(test3))))
+
+    test4 = fock_numerical(coeff_ab_mo, mol.exp_alpha.energies)
+    # print np.sum(np.abs((test4).dot(coeff_ab_mo) - olp.dot(coeff_ab_mo).dot(np.diag(energies))))
+    test4 = coeff_ab_mo.T.dot(test4).dot(coeff_ab_mo)
+    print np.diag(test4), 'From artificial Fock'
+    # print np.sum(np.abs(test4-np.diag(np.diag(test4))))
+
     print energies, 'From fchk'
 # diagonalized quambo energy
 # [-19.22095484  -5.31946042  -5.05850352  -4.97057566  -5.0586551   -4.04029956  -4.04029956  -4.04012546]
