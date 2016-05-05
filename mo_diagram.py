@@ -36,7 +36,7 @@ def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
         coeff_ab_quambo = quasi.quambo()
         '''fock_quambo_quambo is QUAMBO energy
         '''
-        fock_ab = fock_numerical(coeff_ab_mo, mo_energies)
+        fock_ab = fock_numerical([coeff_ab_mo], [mo_energies])[0]
         fock_quambo = coeff_ab_quambo.T.dot(fock_ab).dot(coeff_ab_quambo)
         fock_quambo_sep.append(fock_quambo)
     quambo_energies = np.hstack([np.diag(fock) for fock in fock_quambo_sep])
