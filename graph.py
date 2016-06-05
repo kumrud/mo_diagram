@@ -24,7 +24,9 @@ def generate_graph(num_point, theta=None):
     ys = [i[1] for i in point]
 
     # Plot points
-    plt.scatter(xs, ys, color='red')
+    fig, ax = plt.subplots()
+    ax = fig.add_subplot(111)
+    ax.scatter(xs, ys, color='red')
 
     # Plot lines
     for i in point:
@@ -33,9 +35,17 @@ def generate_graph(num_point, theta=None):
                 print i, j
                 x_line = [i[0], j[0]]
                 y_line = [i[1], j[1]]
-                plt.plot(x_line, y_line, color='green')
-                print np.asarray(x_line)-np.asarray(y_line)
+                line, = ax.plot(x_line, y_line, color='green')
             else:
                 pass
+
+    # Set line visibility by clicking
+    def onpick(event):
+        artist = event.artist
+        vis = not line.get_visible()
+        artist.set_visible(vis)
+        fig.canvas.draw()
+
+    fig.canvas.mpl_connect('pick_event', onpick)
     plt.show()
 
