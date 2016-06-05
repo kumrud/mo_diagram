@@ -5,6 +5,8 @@ import itertools as it
 
 __author__ = 'Kumru'
 
+on_alpha = 1.0
+off_alpha = 0.1
 
 def generate_circle_graph(num_point, adjacency=None):
     """ Generates complete graph arranged in a circle
@@ -41,18 +43,19 @@ def generate_circle_graph(num_point, adjacency=None):
     for indices in zip(*np.nonzero(np.triu(adjacency))):
         x_line = [x_point[i] for i in indices]
         y_line = [y_point[i] for i in indices]
-        lines.append(ax.plot(x_line, y_line, color='blue', alpha=1.0, linestyle='dashed', solid_capstyle='round', linewidth=2.5, picker=10)[0])
+        lines.append(ax.plot(x_line, y_line, color='blue', alpha=on_alpha, linestyle='dashed', solid_capstyle='round', linewidth=2.5, picker=10)[0])
 
     # Set line visibility by clicking
     def onpick(event):
         thisline = event.artist
-        if thisline.get_alpha() == 1.0:
-            thisline.set_alpha(0.2)
-        elif thisline.get_alpha() == 0.2:
-            thisline.set_alpha(1.0)
+        if thisline.get_alpha() == on_alpha:
+            thisline.set_alpha(off_alpha)
+        elif thisline.get_alpha() == off_alpha:
+            thisline.set_alpha(on_alpha)
         fig.canvas.draw()
     fig.canvas.mpl_connect('pick_event', onpick)
     plt.show()
+    return fig
 
 
 # adjacency = np.array([[0, 1, 1, 0],
