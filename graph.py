@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools as it
@@ -24,7 +25,9 @@ def generate_circle_graph(num_point, adjacency=None):
 
     # Plot points
     fig = plt.figure()
-    plt.scatter(x_point, y_point, color='black')
+    ax = fig.add_subplot(1, 1, 1)
+    ax.scatter(x_point, y_point, color='black')
+    # ax.plot(x_point, y_point, color='black', picker=True)
 
     if adjacency is None:
         adjacency = np.ones((num_point, num_point), dtype=bool)
@@ -33,26 +36,27 @@ def generate_circle_graph(num_point, adjacency=None):
         assert adjacency.shape[0] == adjacency.shape[1] == num_point, ''
         'Given adjacency matrix does not match the number of points'
 
-    lines = []
     # Plot lines
+    lines = []
     for indices in zip(*np.nonzero(np.triu(adjacency))):
         x_line = [x_point[i] for i in indices]
         y_line = [y_point[i] for i in indices]
-        lines.append(plt.plot(x_line, y_line, color='blue', linestyle='dashed', solid_capstyle='round', linewidth=2.5)[0])
+        lines.append(ax.plot(x_line, y_line, color='blue', alpha=1.0, linestyle='dashed', solid_capstyle='round', linewidth=2.5, picker=10)[0])
 
     # Set line visibility by clicking
     def onpick(event):
-        artist = event.artist
-        vis = not line.get_visible()
-        artist.set_visible(vis)
+        thisline = event.artist
+        if thisline.get_alpha() == 1.0:
+            thisline.set_alpha(0.2)
+        elif thisline.get_alpha() == 0.2:
+            thisline.set_alpha(1.0)
         fig.canvas.draw()
-
     fig.canvas.mpl_connect('pick_event', onpick)
     plt.show()
 
 
-adjacency = np.array([[0, 1, 1, 0],
-                         [1, 0, 0, 1],
-                         [1, 0, 0, 1],
-                         [0, 1, 1, 0]])
-generate_circle_graph(4, adjacency)
+# adjacency = np.array([[0, 1, 1, 0],
+#                          [1, 0, 0, 1],
+#                          [1, 0, 0, 1],
+#                          [0, 1, 1, 0]])
+generate_circle_graph(10, )
