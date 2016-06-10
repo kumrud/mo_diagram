@@ -48,7 +48,6 @@ def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
 
 def generate_one_diagram(energies, occupations, degens, fig, ax, center=0, line_width=1.0, line_sep=0.1):
     # display
-    points_with_annotation = []
     counter = 0
     for degen in degens:
         x_leftmost = -(degen//2)*(line_width+line_sep) - (degen%2)*line_width/2.0
@@ -61,52 +60,18 @@ def generate_one_diagram(energies, occupations, degens, fig, ax, center=0, line_
         ys_degen = zip(y_inits, y_finals)
 
         occs_degen = occupations[counter:counter+degen]
-        for x,y,occ in zip(xs_degen, ys_degen, occs_degen):
+        for x, y, occ in zip(xs_degen, ys_degen, occs_degen):
             if occ > 0.01:
-                line, = plt.plot(x, y, color='green')
+                line, = ax.plot(x, y, color='green', alpha=1.0, picker=10)
             else:
-                line, = plt.plot(x, y, color='red')
+                line, = ax.plot(x, y, color='red', alpha=1.0, picker=10)
 
-            num_boxes = 100
-            delta_x = line_width/num_boxes
-            for i in range(num_boxes):
-                # hovering and plotting
-                # xy = coordinate of mouse
-                # xytext = coordinate of annotation
-                # horizontalalignment = horizontal alignment
-                # bbox = annotation box style
-                annotation = ax.annotate(str(y[0]),
-                                        xy=(x[0]+i*delta_x, y[0]), xycoords='data',
-                                        xytext=(x[1], y[1]+0.2), textcoords='data',
-                                        horizontalalignment="center",
-                                        #arrowprops=dict(arrowstyle="simple",
-                                        #connectionstyle="arc3,rad=0.0"),
-                                        bbox=dict(boxstyle="round", facecolor="w",
-                                                edgecolor="0.5", alpha=0.9)
-                )
-                # by default, disable the annotation visibility
-                annotation.set_visible(False)
-                # keep list of annotation coordinates for user interaction
-                points_with_annotation.append([line, annotation])
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+            text = ax.text(x[1]+0.2, y[1]+0.4, y[0], fontsize=14, verticalalignment='top', bbox=props)
+            text.set_visible(False)
         counter += degen
 
-    # hovering over data points show annotation
-    def on_move(event):
-        visibility_changed = False
-        for point, annotation in points_with_annotation:
-            should_be_visible = (point.contains(event)[0] == True)
-
-            if should_be_visible != annotation.get_visible():
-                visibility_changed = True
-                annotation.set_visible(should_be_visible)
-
-        if visibility_changed:
-            plt.draw()
-
-    on_move_id = fig.canvas.mpl_connect('motion_notify_event', on_move)
-
-
-def generate_all_mo_diagrams(list_energies, list_occupations):
+def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations):
     list_sorted_energies = []
     list_sorted_occupations = []
     list_sorted_degens = []
@@ -126,7 +91,6 @@ def generate_all_mo_diagrams(list_energies, list_occupations):
         list_sorted_occupations.append(occupations)
         list_sorted_degens.append(degens)
 
-    fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
     max_degens = [max(degens) for degens in list_sorted_degens]
     line_width = 1.0
     line_sep = 0.1
@@ -141,24 +105,36 @@ def generate_all_mo_diagrams(list_energies, list_occupations):
         center = -total_width/2.0 + sum(diagram_widths[:i]) + i*diagram_sep + diagram_widths[i]/2.0
         generate_one_diagram(energies, occupations, degens, fig, ax, center=center, line_width=line_width, line_sep=line_sep)
 
-        # add label to y-axis
-    ply.ylabel("Energy (Hartree)")
+    # add label to y-axis
+    ax.set_ylabel("Energy (Hartree)")
 
     # set x range
-    ply.xlim([-total_width/2.0-0.5, total_width/2.0+0.5])
+    ax.set_xlim([-total_width/2.0-0.5, total_width/2.0+0.5])
 
     # set y range
     min_energies = [min(energies) for energies in list_energies]
     max_energies = [max(energies) for energies in list_energies]
-    ply.ylim([min(min_energies)-1, max(max_energies)+1])
+    ax.set_ylim([min(min_energies)-1, max(max_energies)+1])
 
     # remove x-axis label
-    plt.gca().xaxis.set_major_locator(plt.NullLocator())
+    ax.xaxis.set_visible(False)
+    # clicking on line show annotation
+    def on_pick(event):
+        thisline = event.artist
+        index = ax.lines.index(thisline)
+        visibility = ax.texts[index].get_visible()
+        ax.texts[index].set_visible(not visibility)
+        fig.canvas.draw()
 
-    # show plot
-    plt.show()
+    fig.canvas.mpl_connect('pick_event', on_pick)
+    # on_move_id = fig.canvas.mpl_connect('motion_notify_event', on_move)
 
-    # save plot in a eps file
-    # plt.savefig('ELD.eps')
-energies, occupations, quambo_energies = get_quambo_data('ch4_hf.fchk')
-generate_all_mo_diagrams([energies, quambo_energies], [occupations]*2)
+# show plot
+# fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
+# energies, occupations, quambo_energies = get_quambo_data('ch4_hf.fchk')
+# generate_all_mo_diagrams(fig, ax, [energies, quambo_energies], [occupations]*2)
+# generate_all_mo_diagrams(fig, ax, [energies], [occupations])
+# plt.show()
+
+# save plot in a eps file
+# plt.savefig('ELD.eps')
