@@ -71,7 +71,7 @@ def generate_one_diagram(energies, occupations, degens, fig, ax, center=0, line_
             text.set_visible(False)
         counter += degen
 
-def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations):
+def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_event_energy=True):
     list_sorted_energies = []
     list_sorted_occupations = []
     list_sorted_degens = []
@@ -126,7 +126,8 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations):
         ax.texts[index].set_visible(not visibility)
         fig.canvas.draw()
 
-    fig.canvas.mpl_connect('pick_event', on_pick)
+    if pick_event_energy:
+        fig.canvas.mpl_connect('pick_event', on_pick)
     # on_move_id = fig.canvas.mpl_connect('motion_notify_event', on_move)
 
 # show plot
