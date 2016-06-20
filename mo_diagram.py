@@ -1,11 +1,11 @@
 __author__ = 'kumru'
 
+import numpy as np
 import matplotlib.pyplot as plt
 import pylab as ply
 from energy import fock_horton, fock_numerical
-from quasi import QuasiTransformation
-from wrapper_horton import HortonData
-import numpy as np
+from quasibasis.quasi import QuasiTransformation
+from quasibasis.wrapper_horton import HortonData
 
 def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
     hd = HortonData(fchkfile, cao_basis_files)
