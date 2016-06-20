@@ -1,7 +1,7 @@
 from horton import *
 import numpy as np
-from wrapper_horton import HortonData
-from quasi import QuasiTransformation, project
+from quasibasis.wrapper_horton import HortonData
+from quasibasis.quasi import QuasiTransformation, project
 
 log._level=0
 np.set_printoptions(linewidth=200)
@@ -239,7 +239,6 @@ def test_fock():
     # print np.sum(np.abs(test4-np.diag(np.diag(test4))))
 
     print energies, 'From fchk'
-test_fock()
 # diagonalized quambo energy
 # [-19.22095484  -5.31946042  -5.05850352  -4.97057566  -5.0586551   -4.04029956  -4.04029956  -4.04012546]
 # Non-diagonilized quambo energy
