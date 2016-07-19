@@ -2,7 +2,6 @@ __author__ = 'kumru'
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pylab as ply
 from energy import fock_horton, fock_numerical
 from quasibasis.quasi import QuasiTransformation
 from quasibasis.wrapper_horton import HortonData
@@ -71,7 +70,33 @@ def generate_one_diagram(energies, occupations, degens, ax, center=0, line_width
             text.set_visible(False)
         counter += degen
 
-def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_event_energy=True, weights=None):
+def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_event_energy=True, pairwise_weights=None):
+    """ Creates a collection of MO diagrams
+
+    The different MO diagrams can be linked to one another by providing the weights of contribution
+
+    Parameters
+    ----------
+    # CHECK!
+    fig : matplotlib.Figure
+    ax : matplotlib.Axis
+    list_energies : list of list
+    list_occupations : list of list
+    pick_event_energy : bool
+        Flag for using pick event
+    pairwise_weights : Dictionary of tuple of integers to np.ndarray
+        Key is the tuple of the two diagrams that is being compared
+        The orbitals of the first diagram are the contributing orbitals
+        The orbitals of the second diagram are the resulting orbitals
+        i.e. the contributions of the orbitals from the first diagram is given for each orbital
+        of the second diagram
+        The weights describe the contribution of the orbitals from the first diagram (rows) to
+        the orbitals of the second diagram (columns)
+
+    Returns
+    -------
+
+    """
     list_sorted_energies = []
     list_sorted_occupations = []
     list_sorted_degens = []
@@ -99,7 +124,6 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
     diagram_widths = [(line_width+line_sep)*max_degen-line_sep for max_degen in max_degens]
     diagram_sep = 1.0
     total_width = sum(diagram_widths) + diagram_sep*(len(diagram_widths)-1)
-    leftmost_center = + diagram_widths[0]/2.0
 
     # generate each diagram
     for i, energies, occupations, degens in zip(range(len(diagram_widths)),
@@ -109,26 +133,56 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
         center = -total_width/2.0 + sum(diagram_widths[:i]) + i*diagram_sep + diagram_widths[i]/2.0
         generate_one_diagram(energies, occupations, degens, ax, center=center, line_width=line_width, line_sep=line_sep)
 
+    # make a translator from the packaged index (which specifies which system the orbital belongs to)
+    # the flattened index (first come first served)
+    # FIME: wording
+    packaged_flattened_index_dict = {}
+    flattened_packaged_index_dict = {}
+    counter = 0
+    for i, energy in enumerate(list_energies):
+        for j in range(len(energy)):
+            packaged_flattened_index_dict[(i, j)] = counter
+            flattened_packaged_index_dict[counter] = (i, j)
+            counter += 1
+
+    # find number of orbitals in each diagram
+    diagram_num_orbs = [len(energies) for energies in list_energies]
+    # find the offset of orbital indices
+    orb_offsets = [sum(diagram_num_orbs[:i]) for i in range(len(list_energies))]
+
     # make lines
-    if isinstance(weights, np.ndarray):
-        assert weights.shape == tuple(len(i) for i in list_energies), 'Given weights must have the right shape'
-        assert np.all(weights >= 0), 'Given weights cannot be negative'
-        line_threshold = 1e-5
-        flat_indices, = np.where(weights.flat > line_threshold)
-        indices = [np.unravel_index(index, weights.shape) for index in flat_indices]
-        for index in indices:
-            # assume first diagram is the mo diagram
-            to_x_coords, to_y_coords = ax.lines[index[0]].get_data()
-            for i,j in enumerate(index[1:]):
-                # find the index of the line that corresponds to ab
-                from_line_index = sum(weights.shape[:i+1]) + j
-                # get the coordinates of this line
-                from_x_coords, from_y_coords = ax.lines[from_line_index].get_data()
+    dict_packaged_index_lines = {}
+    if pairwise_weights is not None:
+        # check if good value
+        if not isinstance(pairwise_weights, dict):
+            raise TypeError('pairwise_weights should be a dictionary')
+        if any(weights.shape != (len(list_energies[i]), len(list_energies[j]))
+               for (i, j), weights in pairwise_weights.items()):
+            raise ValueError('Given weights must have the right shape')
+        if any(np.all(weights < 0) for weights in pairwise_weights.values()):
+            raise ValueError('Given weights must be positive')
+
+        for (diagram_i_one, diagram_i_two), weights in pairwise_weights.items():
+            line_threshold = 1e-5
+            orb_pair_indices = zip(*np.where(weights > line_threshold))
+            for (orb_i_one, orb_i_two) in orb_pair_indices:
+                # get coordinates of the lines
+                # NOTE: orbital indices are offset(by which diagram it belongs to)
+                x_one, y_one= ax.lines[orb_i_one + orb_offsets[diagram_i_one]].get_data()
+                x_two, y_two = ax.lines[orb_i_two + orb_offsets[diagram_i_two]].get_data()
                 # make new line coordinates
-                line_data = [[to_x_coords[1], from_x_coords[0]],
-                             [to_y_coords[1], from_y_coords[0]]]
+                line_data = [[x_one[1], x_two[0]], [y_one[1], y_two[0]]]
                 # make line
-                line, = ax.plot(*line_data, color='blue', alpha=1.0, picker=10)
+                line, = ax.plot(*line_data, color='blue', alpha=0.0)
+                # save the line
+                try:
+                    dict_packaged_index_lines[(diagram_i_two, orb_i_two)].append((diagram_i_one, orb_i_one, line))
+                except KeyError:
+                    dict_packaged_index_lines[(diagram_i_two, orb_i_two)] = [(diagram_i_one, orb_i_one, line)]
+
+                # TODO: add arrow to distinguish between the two directions
+                # NOTE: if one orbital has significant contribution to another orbital,
+                # this does not mean that the latter significantly contributes to the former
 
     # add label to y-axis
     ax.set_ylabel("Energy (Hartree)")
@@ -149,6 +203,21 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
         index = ax.lines.index(thisline)
         visibility = ax.texts[index].get_visible()
         ax.texts[index].set_visible(not visibility)
+        # clicking on weighted orbitals result in the display of all the contributing orbitals
+        if pairwise_weights is not None:
+            # FIXME: all of the degenerate orbitals are selected
+            # turn off all contributions
+            for line in ax.lines[sum(diagram_num_orbs):]:
+                line.set_alpha(0.0)
+            # turn on appropriate contributions
+            diagram_i_to, orb_i_to = flattened_packaged_index_dict[index]
+            try:
+                for diagram_i_from, orb_i_from, line in dict_packaged_index_lines[(diagram_i_to, orb_i_to)]:
+                    weight = pairwise_weights[diagram_i_from, diagram_i_to][orb_i_from, orb_i_to]
+                    line.set_alpha(weight)
+            except KeyError:
+                print('There are no data on the contributions of the selected orbitals')
+            # FIXME: if the same orbital is selected, then the contributions should turn off
         fig.canvas.draw()
 
     if pick_event_energy:
@@ -158,8 +227,9 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
 # show plot
 fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
 energies, occupations, quambo_energies = get_quambo_data('ch4_svp_minao_iao.fchk')
-weights = np.ones(tuple(len(i) for i in [energies, quambo_energies]))
-generate_all_mo_diagrams(fig, ax, [energies, quambo_energies], [occupations]*2, weights=weights)
+#pairwise_weights = {(i, j):np.ones(len(i), len(j)) for i,j in it.combinations([energies, quambo_energies])}
+pairwise_weights = {(1, 0):np.ones((len(quambo_energies), len(energies)))}
+generate_all_mo_diagrams(fig, ax, [energies, quambo_energies], [occupations]*2, pairwise_weights=pairwise_weights)
 plt.show()
 
 # save plot in a eps file
