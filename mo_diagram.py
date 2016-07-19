@@ -46,7 +46,7 @@ def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
     return mo_energies, occupations, quambo_energies
 
 
-def generate_one_diagram(energies, occupations, degens, fig, ax, center=0, line_width=1.0, line_sep=0.1):
+def generate_one_diagram(energies, occupations, degens, ax, center=0, line_width=1.0, line_sep=0.1):
     # display
     counter = 0
     for degen in degens:
@@ -71,10 +71,11 @@ def generate_one_diagram(energies, occupations, degens, fig, ax, center=0, line_
             text.set_visible(False)
         counter += degen
 
-def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_event_energy=True):
+def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_event_energy=True, weights=None):
     list_sorted_energies = []
     list_sorted_occupations = []
     list_sorted_degens = []
+    # sort energies and find degeneracies
     for energies, occupations in zip(list_energies, list_occupations):
         # sort energies
         sort_indices = np.argsort(energies)
@@ -91,19 +92,43 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
         list_sorted_occupations.append(occupations)
         list_sorted_degens.append(degens)
 
+    # find diagram width and spacing parameters
     max_degens = [max(degens) for degens in list_sorted_degens]
     line_width = 1.0
     line_sep = 0.1
     diagram_widths = [(line_width+line_sep)*max_degen-line_sep for max_degen in max_degens]
-    diagram_sep = 0.5
+    diagram_sep = 1.0
     total_width = sum(diagram_widths) + diagram_sep*(len(diagram_widths)-1)
     leftmost_center = + diagram_widths[0]/2.0
+
+    # generate each diagram
     for i, energies, occupations, degens in zip(range(len(diagram_widths)),
                                                 list_sorted_energies,
                                                 list_sorted_occupations,
                                                 list_sorted_degens):
         center = -total_width/2.0 + sum(diagram_widths[:i]) + i*diagram_sep + diagram_widths[i]/2.0
-        generate_one_diagram(energies, occupations, degens, fig, ax, center=center, line_width=line_width, line_sep=line_sep)
+        generate_one_diagram(energies, occupations, degens, ax, center=center, line_width=line_width, line_sep=line_sep)
+
+    # make lines
+    if isinstance(weights, np.ndarray):
+        assert weights.shape == tuple(len(i) for i in list_energies), 'Given weights must have the right shape'
+        assert np.all(weights >= 0), 'Given weights cannot be negative'
+        line_threshold = 1e-5
+        flat_indices, = np.where(weights.flat > line_threshold)
+        indices = [np.unravel_index(index, weights.shape) for index in flat_indices]
+        for index in indices:
+            # assume first diagram is the mo diagram
+            to_x_coords, to_y_coords = ax.lines[index[0]].get_data()
+            for i,j in enumerate(index[1:]):
+                # find the index of the line that corresponds to ab
+                from_line_index = sum(weights.shape[:i+1]) + j
+                # get the coordinates of this line
+                from_x_coords, from_y_coords = ax.lines[from_line_index].get_data()
+                # make new line coordinates
+                line_data = [[to_x_coords[1], from_x_coords[0]],
+                             [to_y_coords[1], from_y_coords[0]]]
+                # make line
+                line, = ax.plot(*line_data, color='blue', alpha=1.0, picker=10)
 
     # add label to y-axis
     ax.set_ylabel("Energy (Hartree)")
@@ -131,11 +156,11 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
     # on_move_id = fig.canvas.mpl_connect('motion_notify_event', on_move)
 
 # show plot
-# fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
-# energies, occupations, quambo_energies = get_quambo_data('ch4_hf.fchk')
-# generate_all_mo_diagrams(fig, ax, [energies, quambo_energies], [occupations]*2)
-# generate_all_mo_diagrams(fig, ax, [energies], [occupations])
-# plt.show()
+fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
+energies, occupations, quambo_energies = get_quambo_data('ch4_svp_minao_iao.fchk')
+weights = np.ones(tuple(len(i) for i in [energies, quambo_energies]))
+generate_all_mo_diagrams(fig, ax, [energies, quambo_energies], [occupations]*2, weights=weights)
+plt.show()
 
 # save plot in a eps file
 # plt.savefig('ELD.eps')
