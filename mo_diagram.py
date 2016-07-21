@@ -108,11 +108,22 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
     list_sorted_degens = []
 
     # sort energies and find degeneracies
-    for energies, occupations in zip(list_energies, list_occupations):
+    for i, energies, occupations in zip(range(len(list_energies)), list_energies, list_occupations):
         # sort energies
         sort_indices = np.argsort(energies)
         energies = energies[sort_indices]
         occupations = occupations[sort_indices]
+
+        new_pairwise_weights = {}
+        if pairwise_weights is not None:
+            for pair, weights in pairwise_weights.items():
+                if pair[1] == i:
+                    new_pairwise_weights[pair] = weights[:, sort_indices]
+                if pair[0] == i:
+                    new_pairwise_weights[pair] = weights[sort_indices, :]
+                else:
+                    new_pairwise_weights[pair] = weights
+            pairwise_weights = new_pairwise_weights
 
         energy_deltas = np.diff(energies)
         tol_degen = 0.01
@@ -123,7 +134,7 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
         list_sorted_energies.append(energies)
         list_sorted_occupations.append(occupations)
         list_sorted_degens.append(degens)
-        
+
     # find diagram width and spacing parameters
     max_degens = [max(degens) for degens in list_sorted_degens]
     line_width = 1.0
@@ -252,7 +263,7 @@ def get_weights(coeffs_ab_mo=None, olp_ab_mo=None, option=0):
     return weights
 
 # examples
-# atomic basis - mo
+#### atomic basis - mo ####
 hd = HortonData('CO.fchk', 'aambs.gbs')
 
 fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
@@ -272,7 +283,7 @@ pairwise_weights = {(0, 1):get_weights(coeff_ab_mo, option=1)}
 generate_all_mo_diagrams(fig, ax, [ab_energies, mo_energies], [np.array([1]*ab_energies.size), occupations], pairwise_weights=pairwise_weights)
 plt.show()
 
-# atomic basis - mo (separating out the atomic basis by atom type)
+#### atomic basis - mo (separating out the atomic basis by atom type) ####
 hd = HortonData('CO.fchk', 'aambs.gbs')
 
 fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
@@ -299,7 +310,7 @@ ab_occupations_atom_separated = [np.array([1]*len(ab_energies)) for ab_energies 
 
 mo_occupations = np.hstack(hd.occupations_sep)
 
-# pu the mo diagram at far right
+# the mo diagram was put on the farther right side
 pairwise_weights = {(i, len(list_unique_atoms)):get_weights(coeff_ab_mo[indices], option=1) for i,indices in ab_atom_indices.items()}
 
 generate_all_mo_diagrams(fig,
@@ -309,7 +320,20 @@ generate_all_mo_diagrams(fig,
                          pairwise_weights=pairwise_weights)
 plt.show()
 
-# quambo - mo
+# you can also manually reorder the diagrams to put the mo diagram in the middle
+fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
+pairwise_weights[(0,1)], pairwise_weights[(2,1)] = pairwise_weights[(0,2)], pairwise_weights[(1,2)]
+del pairwise_weights[(0,2)]
+del pairwise_weights[(1,2)]
+generate_all_mo_diagrams(fig,
+                         ax,
+                         [ab_energies_atom_separated[0], mo_energies, ab_energies_atom_separated[1]],
+                         [ab_occupations_atom_separated[0], mo_occupations, ab_occupations_atom_separated[1]],
+                         pairwise_weights=pairwise_weights)
+plt.show()
+# but this looks weird because (well, just see)
+
+#### quambo - mo ####
 fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
 
 energies, occupations, quambo_energies, coeff_quambo_mo = get_quambo_data('ch4_svp_minao_iao.fchk')
