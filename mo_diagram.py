@@ -3,7 +3,7 @@ __author__ = 'kumru'
 import numpy as np
 import matplotlib.pyplot as plt
 from energy import fock_horton, fock_numerical
-from quasibasis.quasi import QuasiTransformation
+from quasibasis.quasi import QuasiTransformation, project
 from quasibasis.wrapper_horton import HortonData
 
 def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
@@ -16,6 +16,7 @@ def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
     mo_energies_sep = hd.energies_sep
     # generate quambo energies
     fock_quambo_sep = []
+    coeff_quambo_mo_sep = []
     for (coeff_ab_mo,
          olp_ab_ab,
          olp_cao_ab,
@@ -38,11 +39,16 @@ def get_quambo_data(fchkfile, cao_basis_files='aambs.gbs'):
         fock_ab = fock_numerical([coeff_ab_mo], [mo_energies])[0]
         fock_quambo = coeff_ab_quambo.T.dot(fock_ab).dot(coeff_ab_quambo)
         fock_quambo_sep.append(fock_quambo)
+        # get coefficients
+        olp_quambo_quambo = coeff_ab_quambo.T.dot(olp_ab_ab).dot(coeff_ab_quambo)
+        olp_quambo_mo = coeff_ab_quambo.T.dot(olp_ab_ab).dot(coeff_ab_mo)
+        coeff_quambo_mo_sep.append(project(olp_quambo_quambo, olp_quambo_mo))
     quambo_energies = np.hstack([np.diag(fock) for fock in fock_quambo_sep])
+    coeff_quambo_mo = np.hstack(coeff_quambo_mo_sep)
 
-    mo_energies = np.hstack([mo_energies for mo_energies in mo_energies_sep])
-    occupations = np.hstack([occs for occs in occupations_sep])
-    return mo_energies, occupations, quambo_energies
+    mo_energies = np.hstack(mo_energies_sep)
+    occupations = np.hstack(occupations_sep)
+    return mo_energies, occupations, quambo_energies, coeff_quambo_mo
 
 
 def generate_one_diagram(energies, occupations, degens, ax, center=0, line_width=1.0, line_sep=0.1):
@@ -201,6 +207,8 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
     def on_pick(event):
         thisline = event.artist
         index = ax.lines.index(thisline)
+        for text in ax.texts:
+            text.set_visible(False)
         visibility = ax.texts[index].get_visible()
         ax.texts[index].set_visible(not visibility)
         # clicking on weighted orbitals result in the display of all the contributing orbitals
@@ -224,12 +232,29 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
         fig.canvas.mpl_connect('pick_event', on_pick)
     # on_move_id = fig.canvas.mpl_connect('motion_notify_event', on_move)
 
+def get_weights(coeffs_ab_mo=None, olp_ab_mo=None, option=0):
+    if option == 0 and coeffs_ab_mo is not None:
+        weights = np.ones(coeffs_ab_mo.shape)
+    elif option == 0 and olp_ab_mo is not None:
+        weights = np.ones(olp_ab_mo.shape)
+    elif option == 1 and coeffs_ab_mo is not None:
+        weights = np.abs(coeffs_ab_mo)
+        # normalize
+        weights /= np.max(weights, axis=1)[:, np.newaxis]
+    elif option == 2 and coeffs_ab_mo is not None:
+        weights = coeffs_ab_mo**2
+        # normalize
+        weights /= np.max(weights, axis=1)[:, np.newaxis]
+    elif option == 3 and olp_ab_mo is not None:
+        weights = olp_ab_mo**2
+        weights /= np.max(weights, axis=1)[:, np.newaxis]
+    return weights
+
 # show plot
 fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
-energies, occupations, quambo_energies = get_quambo_data('ch4_svp_minao_iao.fchk')
-#pairwise_weights = {(i, j):np.ones(len(i), len(j)) for i,j in it.combinations([energies, quambo_energies])}
-pairwise_weights = {(1, 0):np.ones((len(quambo_energies), len(energies)))}
-generate_all_mo_diagrams(fig, ax, [energies, quambo_energies], [occupations]*2, pairwise_weights=pairwise_weights)
+energies, occupations, quambo_energies, coeff_quambo_mo = get_quambo_data('ch4_svp_minao_iao.fchk')
+pairwise_weights = {(0, 1):get_weights(coeff_quambo_mo, option=1)}
+generate_all_mo_diagrams(fig, ax, [quambo_energies, energies], [occupations]*2, pairwise_weights=pairwise_weights)
 plt.show()
 
 # save plot in a eps file
