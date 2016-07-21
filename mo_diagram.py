@@ -106,6 +106,7 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
     list_sorted_energies = []
     list_sorted_occupations = []
     list_sorted_degens = []
+
     # sort energies and find degeneracies
     for energies, occupations in zip(list_energies, list_occupations):
         # sort energies
@@ -122,7 +123,7 @@ def generate_all_mo_diagrams(fig, ax, list_energies, list_occupations, pick_even
         list_sorted_energies.append(energies)
         list_sorted_occupations.append(occupations)
         list_sorted_degens.append(degens)
-
+        
     # find diagram width and spacing parameters
     max_degens = [max(degens) for degens in list_sorted_degens]
     line_width = 1.0
@@ -250,11 +251,72 @@ def get_weights(coeffs_ab_mo=None, olp_ab_mo=None, option=0):
         weights /= np.max(weights, axis=1)[:, np.newaxis]
     return weights
 
-# show plot
+# examples
+# atomic basis - mo
+hd = HortonData('CO.fchk', 'aambs.gbs')
+
 fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
+
+coeff_ab_mo_sep = hd.coeff_ab_mo_sep
+coeff_ab_mo = np.hstack(coeff_ab_mo_sep)
+
+mo_energies_sep = hd.energies_sep
+mo_energies = np.hstack(mo_energies_sep)
+
+fock_ab_sep = fock_numerical(coeff_ab_mo_sep, mo_energies_sep)
+ab_energies = np.hstack([np.diag(fock_ab) for fock_ab in fock_ab_sep])
+
+occupations = np.hstack(hd.occupations_sep)
+
+pairwise_weights = {(0, 1):get_weights(coeff_ab_mo, option=1)}
+generate_all_mo_diagrams(fig, ax, [ab_energies, mo_energies], [np.array([1]*ab_energies.size), occupations], pairwise_weights=pairwise_weights)
+plt.show()
+
+# atomic basis - mo (separating out the atomic basis by atom type)
+hd = HortonData('CO.fchk', 'aambs.gbs')
+
+fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
+
+# Messy because of the alpha beta generalization
+#ab_basis_map_sep = np.array(hd.ab_basis_map_sep)
+#list_unique_atoms_sep = [set(ab_basis_map) for ab_basis_map in ab_basis_map_sep]
+#ab_atom_indices_sep = [{unique_atom:np.where(ab_basis_map_sep == unique_atom) for unique_atom in list_unique_atoms} for list_unique_atoms in list_unique_atoms_sep]
+# If we assume that the orbitals are spatial
+ab_basis_map = np.array(hd.ab_basis_map_sep)[0]
+list_unique_atoms = set(ab_basis_map)
+ab_atom_indices = {unique_atom:np.where(ab_basis_map == unique_atom) for unique_atom in list_unique_atoms}
+
+coeff_ab_mo_sep = hd.coeff_ab_mo_sep
+coeff_ab_mo = np.hstack(coeff_ab_mo_sep)
+
+mo_energies_sep = hd.energies_sep
+mo_energies = np.hstack(mo_energies_sep)
+
+fock_ab_sep = fock_numerical(coeff_ab_mo_sep, mo_energies_sep)
+ab_energies = np.hstack([np.diag(fock_ab) for fock_ab in fock_ab_sep])
+ab_energies_atom_separated = [ab_energies[ab_atom_indices[atom]] for atom in list_unique_atoms]
+ab_occupations_atom_separated = [np.array([1]*len(ab_energies)) for ab_energies in ab_energies_atom_separated]
+
+mo_occupations = np.hstack(hd.occupations_sep)
+
+# pu the mo diagram at far right
+pairwise_weights = {(i, len(list_unique_atoms)):get_weights(coeff_ab_mo[indices], option=1) for i,indices in ab_atom_indices.items()}
+
+generate_all_mo_diagrams(fig,
+                         ax,
+                         ab_energies_atom_separated+[mo_energies],
+                         ab_occupations_atom_separated+[mo_occupations],
+                         pairwise_weights=pairwise_weights)
+plt.show()
+
+# quambo - mo
+fig, ax = plt.subplots(subplot_kw=dict(axisbg='#EEEEEE'))
+
 energies, occupations, quambo_energies, coeff_quambo_mo = get_quambo_data('ch4_svp_minao_iao.fchk')
+
 pairwise_weights = {(0, 1):get_weights(coeff_quambo_mo, option=1)}
 generate_all_mo_diagrams(fig, ax, [quambo_energies, energies], [occupations]*2, pairwise_weights=pairwise_weights)
+
 plt.show()
 
 # save plot in a eps file
