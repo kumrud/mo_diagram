@@ -1,11 +1,11 @@
 __author__ = 'kumru'
 
 import numpy as np
-from itertools import groupby
+# from itertools import groupby
 import matplotlib.pyplot as plt
-from energy import fock_horton, fock_numerical
-from quasibasis.quasi import QuasiTransformation, project
-from quasibasis.wrapper_horton import HortonData
+# from energy import fock_horton, fock_numerical
+# from quasibasis.quasi import QuasiTransformation, project
+# from quasibasis.wrapper_horton import HortonData
 
 class MoDiagram(object):
     '''
@@ -21,6 +21,9 @@ class MoDiagram(object):
         Transformation matrix from atomic basis to molecular/qa orbitals
     _occupations: np,ndarray of {float, int}
         Occupations of molecular/qa orbitals
+    _basis_map: list of iterable
+        List of indices that correspond to the atom (index for the atom)
+        for each basis function
 
     Raises
     ------
@@ -32,8 +35,8 @@ class MoDiagram(object):
         If occupations is given as float
 
     '''
-    def __init__(self, mo_energies, ab_energies, coeff_ab_mo, occupations):
-        
+    def __init__(self, mo_energies, ab_energies, coeff_ab_mo, occupations, basis_map=None):
+
         # Assert input quality
         assert (isinstance(mo_energies, np.ndarray) and
                 len(mo_energies.shape) == 1),\
@@ -59,6 +62,7 @@ class MoDiagram(object):
         self._ab_energies = ab_energies
         self._coeff_ab_mo = coeff_ab_mo
         self._occupations = occupations
+        self._basis_map = basis_map
 
     @property
     def mo(self):
@@ -110,10 +114,24 @@ class MoDiagram(object):
         '''
         return self._mo_energies[0]
 
-    # def __getattr__(self, attr):
-    #     ''' Return class attribute
-    #     '''
-    #     return self._dict__[attr]
+    def get_aos(self, energies, basis_map, option=None):
+        ''' 
+        Returns atomic orbital energies for selected atoms
+        
+        option: list of ints
+            Select atom numbers in as a list
+        
+        Returns
+        -------
+        wanted_aos: np.ndarray
+            energies for selected atoms sorted
+        '''
+
+        if option is None:
+            return energies
+        elif option is not None:
+            wanted_aos = [energies[i] for i, j in enumerate(basis_map) if j in option]
+            return np.sort(np.asanyarray(wanted_aos))
 
 
 class OrbitalPlot(object):
@@ -122,10 +140,10 @@ class OrbitalPlot(object):
 
     Attributes
     ----------
-    x_lenght: float
-        Lenght of lines
+    x_length: float
+        length of lines
     x_sep: float
-        Dinstance between two lines
+        Distance between two lines
     y_length: float
         Thickness of lines
 
@@ -207,7 +225,7 @@ class OrbitalPlot(object):
         degens = degenerate(energies)
 
         # leftmost x coordinates for a line
-        x_start = [(d & 2) * self.x_shift / 2 - self.x_shift * (d - 1) // 2 for d in degens]
+        x_start = [-(d // 2) * self.x_shift / 2 - self.x_shift * (d - 1) // 2 for d in degens]
 
         # unpack histogram degeracy to match energy levels
         x_data = []
