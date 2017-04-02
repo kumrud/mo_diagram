@@ -115,23 +115,32 @@ class MoDiagram(object):
         return self._mo_energies[0]
 
     def get_aos(self, energies, basis_map, option=None):
-        ''' 
+        '''
         Returns atomic orbital energies for selected atoms
-        
+
         option: list of ints
             Select atom numbers in as a list
-        
+
         Returns
         -------
         wanted_aos: np.ndarray
             energies for selected atoms sorted
         '''
 
+        # if not isinstance(energies, self._ab_energies):
+        #    raise TypeError('AO energies must be from MoDiagram')
         if option is None:
             return energies
         elif option is not None:
-            wanted_aos = [energies[i] for i, j in enumerate(basis_map) if j in option]
-            return np.sort(np.asanyarray(wanted_aos))
+            # sort the desired AOs for histogram
+            # indices of AOs selected
+            index_ao = [i for i, j in enumerate(basis_map) if j in option]
+            wanted_aos = np.asarray([energies[i] for i in index_ao])
+            sorted_aos = np.sort(wanted_aos)
+            # rows that will be swapped to match the sorted AOs (for connection)
+            coeff_sort_indices = np.argsort(wanted_aos) + index_ao[0]
+            self._coeff_ab_mo[index_ao] = self._coeff_ab_mo[coeff_sort_indices]
+            return sorted_aos
 
 
 class OrbitalPlot(object):
@@ -251,16 +260,25 @@ class OrbitalPlot(object):
 
     def make_line(self, *args):
         '''TODO: Check arguments
-            shift multiple plots
+            Does it work ??? shift multiple plots
         '''
         fig, ax = plt.subplots()
         ax.set_xlim(-4,4)
         ax.set_ylim(-21,2)
+        end = 0
+        start = 0
         for energy in args:
-            x, y, color = self.line_data(energy)
+            print energy
+            if start != 0:
+                start = np.abs(np.min(x[:, 0]))
 
-            line = [ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i,j in enumerate(energy)]
-            return line
+            x, y, color = self.line_data(energy)
+            x[:, 0] += end + start
+            end = np.max(x[:, 0]) + 2
+            print x[:, 0]
+
+            line = [ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(energy)]
+        return plt.show()
 
     def make_graph(self, *args):
         pass
@@ -292,11 +310,8 @@ def degenerate(energies, tol=0.01):
     energy_diff = np.diff(energies)
     # a new line after these indices
     degen_indices = [i for i,j in enumerate(energy_diff) if j>tol]
-    print degen_indices
     # histogram range right non-inclusive
     energy_bins = [energies[0]]+[energies[i+1] for i in degen_indices]+[energies[-1]+1]
-    print energy_bins
-    print energies
     degens = np.histogram(energies, bins=energy_bins)[0]
     return degens
 
