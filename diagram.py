@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 # from quasibasis.quasi import QuasiTransformation, project
 # from quasibasis.wrapper_horton import HortonData
 
+
 class MoDiagram(object):
-    '''
+    """
     Generate Molecular Orbital Diagram using matplotlib.
 
     Attributes
@@ -34,7 +35,8 @@ class MoDiagram(object):
         If number of occupations not consistent for mo_energies
         If occupations is given as float
 
-    '''
+    """
+
     def __init__(self, mo_energies, ab_energies, coeff_ab_mo, occupations, basis_map=None):
 
         # Assert input quality
@@ -66,56 +68,56 @@ class MoDiagram(object):
 
     @property
     def mo(self):
-        '''Molecular/QAO energies
-        '''
+        """Molecular/QAO energies
+        """
         return self._mo_energies
 
     @property
     def ao(self):
-        '''Atomic orbital energies
-        '''
+        """Atomic orbital energies
+        """
         return self._ab_energies
 
     @property
     def coeff(self):
-        '''Coefficient matrix from atomic basis to molecular
-        '''
+        """Coefficient matrix from atomic basis to molecular
+        """
         return self._coeff_ab_mo
 
     @property
     def occupations(self):
-        '''Occupation of molecular orbitals
-        '''
+        """Occupation of molecular orbitals
+        """
         return self._occupations
 
     @property
     def degen_ao(self):
-        '''Degeneracy atomic orbital
-        '''
+        """Degeneracy atomic orbital
+        """
         degen_ao = degenerate(self._ab_energies)
         return degen_ao
 
     @property
     def degen_mo(self):
-        '''Degeneracy atomic orbital
-        '''
+        """Degeneracy atomic orbital
+        """
         degen_mo = degenerate(self._mo_energies)
         return degen_mo
 
     @property
     def num_ao(self):
-        ''' Number of atomic orbitals
-        '''
+        """ Number of atomic orbitals
+        """
         return self._ab_energies[0]
 
     @property
     def num_mo(self):
-        ''' Number of atomic orbitals
-        '''
+        """ Number of atomic orbitals
+        """
         return self._mo_energies[0]
 
     def get_aos(self, energies, basis_map, option=None):
-        '''
+        """
         Returns atomic orbital energies for selected atoms
 
         option: list of ints
@@ -125,7 +127,7 @@ class MoDiagram(object):
         -------
         wanted_aos: np.ndarray
             energies for selected atoms sorted
-        '''
+        """
 
         # if not isinstance(energies, self._ab_energies):
         #    raise TypeError('AO energies must be from MoDiagram')
@@ -145,7 +147,7 @@ class MoDiagram(object):
 
 class OrbitalPlot(object):
 
-    ''' Manages matplotlib ugliness
+    """ Manages matplotlib ugliness
 
     Attributes
     ----------
@@ -169,11 +171,17 @@ class OrbitalPlot(object):
     TODO:line_connect, How to connect two lines on different graphs
 
 
-    '''
-    def __init__(self, data, x_length=1.0, x_sep=0.1, y_length=0.1):
+    """
+    def __init__(self, data, x_length=1.0, x_sep=0.1, y_length=0.09):
         self._x_length = x_length
         self._x_sep = x_sep
         self._y_length = y_length
+        self.x_min = 0
+        self.x_max = 0
+        self.y_min = 0
+        self.y_max = 0
+        self.graph = []
+        self.line_coor = []
 
         if not isinstance(data, MoDiagram):
             raise TypeError('Given data has to be an MoDiagram instance')
@@ -181,34 +189,50 @@ class OrbitalPlot(object):
 
     @property
     def x_length(self):
-        ''' Length of a line
-        '''
+        """ Length of a line
+        """
         return self._x_length
 
     @property
     def x_sep(self):
-        ''' Separation between each degenerate level
-        '''
+        """ Separation between each degenerate level
+        """
         return self._x_sep
 
     @property
     def x_shift(self):
-        ''' Length of which a line will be shifted in case of degeneracy
-        '''
+        """ Length of which a line will be shifted in case of degeneracy
+        """
         return self._x_length + self._x_sep
 
     @property
     def y_length(self):
-        ''' Thickness of the line
-        '''
+        """ Thickness of the line
+        """
         return self._y_length
 
     @property
     def occupations(self):
         return self._data.occupations
 
+    @property
+    def xmin(self):
+        return self.x_min
+
+    @property
+    def xmax(self):
+        return self.x_max
+
+    @property
+    def ymin(self):
+        return self.y_min
+
+    @property
+    def ymax(self):
+        return self.y_max
+
     def line_data(self, energies):
-        '''
+        """
         Sets x and y coordinates for lines
 
         Parameters
@@ -230,21 +254,21 @@ class OrbitalPlot(object):
             (0.6500000000000001, 1), (1.7500000000000002, 1)]
         y_coor = [(0, 0.01), (1, 0.01), (1, 0.01), (2, 0.01), (3, 0.01), (3, 0.01), (3, 0.01)]
 
-        '''
+        """
         degens = degenerate(energies)
 
         # leftmost x coordinates for a line
-        x_start = [-(d // 2) * self.x_shift / 2 - self.x_shift * (d - 1) // 2 for d in degens]
+        x_start = [-(d // 2) * (self.x_shift) - (d % 2) * self.x_length / 2.0 for d in degens]
 
         # unpack histogram degeracy to match energy levels
         x_data = []
-        for i,j in zip(degens, x_start):
-            if i != 1: x_data += [j + k * (self.x_shift) for k in range(int(i))]
+        for i, j in zip(degens, x_start):
+            if i != 1: x_data += [j + k * self.x_shift for k in range(int(i))]
             if i == 1: x_data.append(j)
 
         # zip start and length of x and y coordinates
-        x_coor = [(i, self.x_length) for i in x_data]
-        y_coor = [(i, self.y_length) for i in energies]
+        x_coor = np.asarray([(i, self.x_length) for i in x_data])
+        y_coor = np.asarray([(i, self.y_length) for i in energies])
 
         # line colors as occupation
         line_color = []
@@ -258,34 +282,120 @@ class OrbitalPlot(object):
 
         return x_coor, y_coor, line_color
 
+    @staticmethod
+    def connect_lines(xy_list, ax, option=None):
+        """
+        Connects MO to AO diagram(s) with lines 
+        """
+        # TODO: Change keys from numbers to ax.broken_barh instances
+
+        ao1 = xy_list[0]
+        mo = xy_list[1]
+        ao2 = xy_list[2]
+        # keys ofr MO numbers, val for lines connecting to that mo
+        mo_ao_lines = {}
+        for i, m in enumerate(mo):
+            for j, aos in enumerate(zip(ao1,ao2)):
+                counter = 0
+                for x, y in aos:
+                    line, = ax.plot([m[counter], x], [m[2], y], color='blue', alpha=0.8)
+                    mo_ao_lines.setdefault(i, []).append(line)
+                    counter += 1
+        return mo_ao_lines
+        # select keys to make them visible, move it onpick
+        # [line.set_alpha(1.0) for key in [2, 4] for line in mo_ao_lines[key]]
+
+    @staticmethod
+    def limit_setter(coordinate, attr_max, attr_min):
+        """
+        Sets x and y boundaries for the graph
+        
+        Parameters
+        ----------
+        coordinate: list
+            list of starting point (either x or y coordinates) for the line
+        attr_max: int or float
+            attribute for maximum x or y coordinate
+        attr_min: int or float
+            attribute for minimum x or y coordinate
+        
+        Returns
+        -------
+        attr_max, attr_min
+        
+        """
+
+        for point in coordinate:
+            if point > attr_max:
+                attr_max = point
+            if point < attr_min:
+                attr_min = point
+        return attr_max, attr_min
+
     def make_line(self, *args):
-        '''TODO: Check arguments
-            Does it work ??? shift multiple plots
-        '''
+        """
+        Draws diagram(s)
+        
+        Parameters
+        ----------
+        args: np.ndarray
+            energies to be graphed
+        """
+
         fig, ax = plt.subplots()
-        ax.set_xlim(-4,4)
-        ax.set_ylim(-21,2)
         end = 0
-        start = 0
-        for energy in args:
-            print energy
-            if start != 0:
-                start = np.abs(np.min(x[:, 0]))
-
+        # TODO: Get rid of xy_coor
+        xy_coor = []
+        for i, energy in enumerate(args):
             x, y, color = self.line_data(energy)
-            x[:, 0] += end + start
-            end = np.max(x[:, 0]) + 2
-            print x[:, 0]
+            # shift graphs, except the first one
+            if end != 0:
+                x[:, 0] += (np.abs(np.min(x[:, 0]))+np.max(x[:, 0])) / 2 + 3
+                x[:, 0] += end
 
-            line = [ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(energy)]
-        return plt.show()
+            xy_coor.append([(x_start, x_start + x_line_width, y_start, y_start + y_line_width)
+                            for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+            # TODO: Better way to do this
+            if i == 0:
+                self.line_coor.append([(x_start + x_line_width, (y_start + y_start+y_line_width)/2)
+                            for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+                # print "AO1"
+                # print self.line_coor
+            if i == 1:
+                self.line_coor.append([(x_start, x_start + x_line_width, (y_start + y_start+y_line_width) / 2)
+                                       for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+                # print "MO"
+                # print self.line_coor[1]
+            if i == 2:
+                self.line_coor.append([(x_start, (y_start + y_start+y_line_width) / 2)
+                                       for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+                # print "AO2"
+                # print self.line_coor[2]
 
-    def make_graph(self, *args):
-        pass
+            # Each line in is an object of ax
+            self.graph.append([ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(energy)])
+            end = np.max(x[:, 0])+1
+            # set graph boundaries
+            self.x_max, self.x_min = self.limit_setter(x[:, 0], self.x_max, self.x_min)
+            self.y_max, self.y_min = self.limit_setter(y[:, 0], self.y_max, self.y_min)
+
+        ax.set_xlim(self.x_min-1, self.x_max+2)
+        ax.set_ylim(self.y_min-2, self.y_max+2)
+        self.connect_lines(self.line_coor, ax)
+        plt.show()
+
+        def on_pick(event):
+            """ Set event for the clicking of orbital line
+
+            Clicking should result in the annotation (orbital energy) and
+            the connectivity between orbitals of different MO diagram to appear
+
+            """
+            pass
 
 
 def degenerate(energies, tol=0.01):
-    '''
+    """
     Sets degenerate energy levels using histogram
 
     Parameters
@@ -305,13 +415,13 @@ def degenerate(energies, tol=0.01):
     energies = np.array([2, 2, 5, 6, 7, 7, 8])
     degens = array([2, 1, 1, 2, 1])
 
-    '''
+    """
 
     energy_diff = np.diff(energies)
     # a new line after these indices
     degen_indices = [i for i,j in enumerate(energy_diff) if j>tol]
     # histogram range right non-inclusive
-    energy_bins = [energies[0]]+[energies[i+1] for i in degen_indices]+[energies[-1]+1]
+    energy_bins = [energies[0]] + [energies[i+1] for i in degen_indices]+[energies[-1]+1]
     degens = np.histogram(energies, bins=energy_bins)[0]
     return degens
 
