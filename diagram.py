@@ -181,7 +181,7 @@ class OrbitalPlot(object):
         self.y_min = 0
         self.y_max = 0
         self.graph = []
-        self.line_coor = []
+        self.orb_coor = []
 
         if not isinstance(data, MoDiagram):
             raise TypeError('Given data has to be an MoDiagram instance')
@@ -231,6 +231,10 @@ class OrbitalPlot(object):
     def ymax(self):
         return self.y_max
 
+    @property
+    def connecting_lines(self):
+        return self.connection_lines
+
     def line_data(self, energies):
         """
         Sets x and y coordinates for lines
@@ -258,7 +262,7 @@ class OrbitalPlot(object):
         degens = degenerate(energies)
 
         # leftmost x coordinates for a line
-        x_start = [-(d // 2) * (self.x_shift) - (d % 2) * self.x_length / 2.0 for d in degens]
+        x_start = [-(d // 2) * self.x_shift - (d % 2) * self.x_length / 2.0 for d in degens]
 
         # unpack histogram degeracy to match energy levels
         x_data = []
@@ -282,8 +286,7 @@ class OrbitalPlot(object):
 
         return x_coor, y_coor, line_color
 
-    @staticmethod
-    def connect_lines(xy_list, ax, option=None):
+    def connect_lines(self, xy_list, ax, orb_mo):
         """
         Connects MO to AO diagram(s) with lines 
         """
@@ -293,15 +296,19 @@ class OrbitalPlot(object):
         mo = xy_list[1]
         ao2 = xy_list[2]
         # keys ofr MO numbers, val for lines connecting to that mo
-        mo_ao_lines = {}
+        mo_ao_lines_dict = {}
         for i, m in enumerate(mo):
             for j, aos in enumerate(zip(ao1,ao2)):
                 counter = 0
                 for x, y in aos:
-                    line, = ax.plot([m[counter], x], [m[2], y], color='blue', alpha=0.8)
-                    mo_ao_lines.setdefault(i, []).append(line)
+                    line, = ax.plot([m[counter], x], [m[2], y], color='blue', alpha=1.0)
+                    mo_ao_lines_dict.setdefault(i, []).append(line)
                     counter += 1
-        return mo_ao_lines
+
+        # map ax.broken_barh objects to lines
+        for index, value in enumerate(orb_mo):
+            mo_ao_lines_dict[value] = mo_ao_lines_dict.pop(index)
+        return setattr(self, 'connection_lines', mo_ao_lines_dict)
         # select keys to make them visible, move it onpick
         # [line.set_alpha(1.0) for key in [2, 4] for line in mo_ao_lines[key]]
 
@@ -344,55 +351,68 @@ class OrbitalPlot(object):
 
         fig, ax = plt.subplots()
         end = 0
-        # TODO: Get rid of xy_coor
-        xy_coor = []
         for i, energy in enumerate(args):
             x, y, color = self.line_data(energy)
             # shift graphs, except the first one
             if end != 0:
-                x[:, 0] += (np.abs(np.min(x[:, 0]))+np.max(x[:, 0])) / 2 + 3
+                x[:, 0] += (np.abs(np.min(x[:, 0])) + np.max(x[:, 0])) / 2 + 3
                 x[:, 0] += end
+            end = np.max(x[:, 0])+1
 
-            xy_coor.append([(x_start, x_start + x_line_width, y_start, y_start + y_line_width)
-                            for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
             # TODO: Better way to do this
             if i == 0:
-                self.line_coor.append([(x_start + x_line_width, (y_start + y_start+y_line_width)/2)
-                            for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+                self.orb_coor.append([(x_start + x_length, (y_start + y_start + y_length)/2)
+                            for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
                 # print "AO1"
-                # print self.line_coor
-            if i == 1:
-                self.line_coor.append([(x_start, x_start + x_line_width, (y_start + y_start+y_line_width) / 2)
-                                       for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+                # print self.orb_coor
+            elif i == 1:
+                self.orb_coor.append([(x_start, x_start + x_length, (y_start + y_start + y_length) / 2)
+                                       for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
                 # print "MO"
-                # print self.line_coor[1]
-            if i == 2:
-                self.line_coor.append([(x_start, (y_start + y_start+y_line_width) / 2)
-                                       for ((x_start, x_line_width), (y_start, y_line_width)) in zip(x, y)])
+                # print self.orb_coor[1]
+            elif i == 2:
+                self.orb_coor.append([(x_start, (y_start + y_start + y_length) / 2)
+                                       for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
                 # print "AO2"
-                # print self.line_coor[2]
+                # print self.orb_coor[2]
 
             # Each line in is an object of ax
             self.graph.append([ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(energy)])
-            end = np.max(x[:, 0])+1
+
             # set graph boundaries
             self.x_max, self.x_min = self.limit_setter(x[:, 0], self.x_max, self.x_min)
             self.y_max, self.y_min = self.limit_setter(y[:, 0], self.y_max, self.y_min)
 
+        for i in self.graph[1]:
+            i.set_picker(5)
+
         ax.set_xlim(self.x_min-1, self.x_max+2)
         ax.set_ylim(self.y_min-2, self.y_max+2)
-        self.connect_lines(self.line_coor, ax)
-        plt.show()
+        self.connect_lines(self.orb_coor, ax , self.graph[1])
 
-        def on_pick(event):
+        for i in self.connection_lines.values():
+            for j in i:
+                j.set_visible(False)
+
+        def onpick(event):
             """ Set event for the clicking of orbital line
-
+    
             Clicking should result in the annotation (orbital energy) and
             the connectivity between orbitals of different MO diagram to appear
-
+    
             """
-            pass
 
+            orbital = event.artist
+            # self.graph[1].index(orbital)
+            lines = self.connecting_lines[orbital]
+            print lines
+            vis = [not i.get_visible() for i in lines]
+            [j.set_visible(i) for i in vis for j in lines]
+
+            fig.canvas.draw()
+
+        fig.canvas.mpl_connect('pick_event', onpick)
+        plt.show()
 
 def degenerate(energies, tol=0.01):
     """
