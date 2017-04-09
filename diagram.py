@@ -286,7 +286,7 @@ class OrbitalPlot(object):
 
         return x_coor, y_coor, line_color
 
-    def connect_lines(self, xy_list, ax, orb_mo):
+    def connect_lines(self, xy_list, ax, orb_mo, coeff):
         """
         Connects MO to AO diagram(s) with lines 
         """
@@ -296,21 +296,25 @@ class OrbitalPlot(object):
         mo = xy_list[1]
         ao2 = xy_list[2]
         # keys ofr MO numbers, val for lines connecting to that mo
-        mo_ao_lines_dict = {}
+        mo_ao_lines_dict = {i : [] for i, _ in enumerate(mo)}
         for i, m in enumerate(mo):
-            for j, aos in enumerate(zip(ao1,ao2)):
-                counter = 0
-                for x, y in aos:
-                    line, = ax.plot([m[counter], x], [m[2], y], color='blue', alpha=1.0)
-                    mo_ao_lines_dict.setdefault(i, []).append(line)
-                    counter += 1
+            # make left line
+            for j, (x, y) in enumerate(ao1):
+                line, = ax.plot([m[0], x], [m[2], y], color='blue', alpha=1.0)
+                mo_ao_lines_dict[i].append(line)
+            # make right line
+            for j, (x, y) in enumerate(ao2):
+                line, = ax.plot([m[1], x], [m[2], y], color='blue', alpha=1.0)
+                mo_ao_lines_dict[i].append(line)
 
+        for key, value in mo_ao_lines_dict.items():
+            for index, line in enumerate(value):
+                line.set_alpha(abs(coeff[index, key]))
+        print mo_ao_lines_dict.values()
         # map ax.broken_barh objects to lines
         for index, value in enumerate(orb_mo):
             mo_ao_lines_dict[value] = mo_ao_lines_dict.pop(index)
         return setattr(self, 'connection_lines', mo_ao_lines_dict)
-        # select keys to make them visible, move it onpick
-        # [line.set_alpha(1.0) for key in [2, 4] for line in mo_ao_lines[key]]
 
     @staticmethod
     def limit_setter(coordinate, attr_max, attr_min):
@@ -383,12 +387,15 @@ class OrbitalPlot(object):
             self.x_max, self.x_min = self.limit_setter(x[:, 0], self.x_max, self.x_min)
             self.y_max, self.y_min = self.limit_setter(y[:, 0], self.y_max, self.y_min)
 
+        # Set mo diagram lines clickable
         for i in self.graph[1]:
             i.set_picker(5)
 
+        # Limits of the graph
         ax.set_xlim(self.x_min-1, self.x_max+2)
         ax.set_ylim(self.y_min-2, self.y_max+2)
-        self.connect_lines(self.orb_coor, ax , self.graph[1])
+        # Make lines between AOs to MOs
+        self.connect_lines(self.orb_coor, ax, self.graph[1], self._data.coeff)
 
         for i in self.connection_lines.values():
             for j in i:
@@ -403,9 +410,7 @@ class OrbitalPlot(object):
             """
 
             orbital = event.artist
-            # self.graph[1].index(orbital)
             lines = self.connecting_lines[orbital]
-            print lines
             vis = [not i.get_visible() for i in lines]
             [j.set_visible(i) for i in vis for j in lines]
 
