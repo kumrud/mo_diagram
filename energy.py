@@ -160,7 +160,7 @@ def fock_numerical(coeff_ab_mo_list, mo_energies_list):
         fock_list.append(inv_coeff_ab_mo.T.dot(np.diag(mo_energies)).dot(inv_coeff_ab_mo))
     return fock_list
 
-def quambo_energy(fchk_file, cao_basis_file):
+def quambo_energy(fchk_file, cao_basis_file, fock):
     '''
     Parameters
     ----------
@@ -200,7 +200,7 @@ def quambo_energy(fchk_file, cao_basis_file):
         coeff_ab_quambo = quasi.quambo()
         '''fock_quambo_quambo is QUAMBO energy
         '''
-        fock_quambo_quambo = coeff_ab_quambo.T.dot(horton_energy(fchk_file)).dot(coeff_ab_quambo)
+        fock_quambo_quambo = coeff_ab_quambo.T.dot(fock).dot(coeff_ab_quambo)
     # occupations = np.array([i for i in occupations_sep[0] if i>0])*2
     # print occupations_sep
 
@@ -238,7 +238,7 @@ def test_fock():
     print np.diag(test4), 'From artificial Fock'
     # print np.sum(np.abs(test4-np.diag(np.diag(test4))))
 
-    print energies, 'From fchk'
+    #print energies, 'From fchk'
 # diagonalized quambo energy
 # [-19.22095484  -5.31946042  -5.05850352  -4.97057566  -5.0586551   -4.04029956  -4.04029956  -4.04012546]
 # Non-diagonilized quambo energy

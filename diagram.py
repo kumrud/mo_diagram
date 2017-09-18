@@ -2,6 +2,7 @@ __author__ = 'kumru'
 
 import numpy as np
 # from itertools import groupby
+import matplotlib
 import matplotlib.pyplot as plt
 # from energy import fock_horton, fock_numerical
 # from quasibasis.quasi import QuasiTransformation, project
@@ -46,8 +47,8 @@ class MoDiagram(object):
         assert (isinstance(ab_energies, np.ndarray) and
                 len(ab_energies.shape) == 1),\
             'Ao energies is not given as a one dimensional numpy array'
-        assert (ab_energies.shape[0] <= mo_energies.shape[0]),\
-            'Ao number is greater than Mo'
+        #assert (ab_energies.shape[0] <= mo_energies.shape[0]),\
+            #'Ao number is greater than Mo'
         assert (isinstance(coeff_ab_mo, np.ndarray) and
             len(coeff_ab_mo.shape) == 2), \
             'Coefficient matrix given is not a two dimentional array'
@@ -172,7 +173,7 @@ class OrbitalPlot(object):
 
 
     """
-    def __init__(self, data, x_length=1.0, x_sep=0.1, y_length=0.09):
+    def __init__(self, data, fig=None, ax=None, x_length=1.0, x_sep=0.5, y_length=0.09):
         self._x_length = x_length
         self._x_sep = x_sep
         self._y_length = y_length
@@ -182,6 +183,8 @@ class OrbitalPlot(object):
         self.y_max = 0
         self.graph = []
         self.orb_coor = []
+        self.fig = fig
+        self.ax = ax
 
         if not isinstance(data, MoDiagram):
             raise TypeError('Given data has to be an MoDiagram instance')
@@ -216,6 +219,10 @@ class OrbitalPlot(object):
         return self._data.occupations
 
     @property
+    def mo_energies(self):
+        return self._data.mo
+
+    @property
     def xmin(self):
         return self.x_min
 
@@ -235,9 +242,9 @@ class OrbitalPlot(object):
     def connecting_lines(self):
         return self.connection_lines
 
-    def line_data(self, energies):
+    def brokenbar_data(self, energies):
         """
-        Sets x and y coordinates for lines
+        Sets x and y coordinates for for brokenbar object
 
         Parameters
         ----------
@@ -259,7 +266,7 @@ class OrbitalPlot(object):
         y_coor = [(0, 0.01), (1, 0.01), (1, 0.01), (2, 0.01), (3, 0.01), (3, 0.01), (3, 0.01)]
 
         """
-        degens = degenerate(energies)
+        degens = degenerate(self.mo_energies)
 
         # leftmost x coordinates for a line
         x_start = [-(d // 2) * self.x_shift - (d % 2) * self.x_length / 2.0 for d in degens]
@@ -272,7 +279,7 @@ class OrbitalPlot(object):
 
         # zip start and length of x and y coordinates
         x_coor = np.asarray([(i, self.x_length) for i in x_data])
-        y_coor = np.asarray([(i, self.y_length) for i in energies])
+        y_coor = np.asarray([(i, self.y_length) for i in self.mo_energies])
 
         # line colors as occupation
         line_color = []
@@ -284,6 +291,37 @@ class OrbitalPlot(object):
             else: line_color.append("blue")
         tuple(line_color)
 
+        return x_coor, y_coor, line_color
+
+    def line_data(self):
+        """ 
+        sets x,y color data to make lin2d object
+        
+        """
+        degens = degenerate(self.mo_energies)
+        x_start = [-(d // 2) * self.x_shift - (d % 2) * self.x_length / 2.0 for d in degens]
+        x_data = []
+        for i, j in zip(degens, x_start):
+            if i != 1: x_data += [j + k * self.x_shift for k in range(int(i))]
+            if i == 1: x_data.append(j)
+
+        # zip start and length of x and y coordinates
+        x_coor = np.asarray([[i, i+self.x_length] for i in x_data])
+        y_coor = np.asarray([[i, i] for i in self.mo_energies])
+
+        # line colors as occupation
+        line_color = []
+        for i in self.occupations:
+            if i == 2:
+                line_color.append("green")
+            elif i == 1:
+                line_color.append("yellow")
+            elif i == 0:
+                line_color.append("red")
+            # Should not happen
+            else:
+                line_color.append("blue")
+        tuple(line_color)
         return x_coor, y_coor, line_color
 
     def connect_lines(self, xy_list, ax, orb_mo, coeff):
@@ -316,108 +354,189 @@ class OrbitalPlot(object):
             mo_ao_lines_dict[value] = mo_ao_lines_dict.pop(index)
         return setattr(self, 'connection_lines', mo_ao_lines_dict)
 
-    @staticmethod
-    def limit_setter(coordinate, attr_max, attr_min):
-        """
-        Sets x and y boundaries for the graph
-        
-        Parameters
-        ----------
-        coordinate: list
-            list of starting point (either x or y coordinates) for the line
-        attr_max: int or float
-            attribute for maximum x or y coordinate
-        attr_min: int or float
-            attribute for minimum x or y coordinate
-        
-        Returns
-        -------
-        attr_max, attr_min
-        
-        """
 
-        for point in coordinate:
-            if point > attr_max:
-                attr_max = point
-            if point < attr_min:
-                attr_min = point
-        return attr_max, attr_min
-
-    def make_line(self, *args):
-        """
-        Draws diagram(s)
-        
-        Parameters
-        ----------
-        args: np.ndarray
-            energies to be graphed
-        """
-
-        fig, ax = plt.subplots()
-        end = 0
-        for i, energy in enumerate(args):
-            x, y, color = self.line_data(energy)
-            # shift graphs, except the first one
-            if end != 0:
-                x[:, 0] += (np.abs(np.min(x[:, 0])) + np.max(x[:, 0])) / 2 + 3
-                x[:, 0] += end
-            end = np.max(x[:, 0])+1
-
-            # TODO: Better way to do this
-            if i == 0:
-                self.orb_coor.append([(x_start + x_length, (y_start + y_start + y_length)/2)
-                            for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
-                # print "AO1"
-                # print self.orb_coor
-            elif i == 1:
-                self.orb_coor.append([(x_start, x_start + x_length, (y_start + y_start + y_length) / 2)
-                                       for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
-                # print "MO"
-                # print self.orb_coor[1]
-            elif i == 2:
-                self.orb_coor.append([(x_start, (y_start + y_start + y_length) / 2)
-                                       for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
-                # print "AO2"
-                # print self.orb_coor[2]
-
-            # Each line in is an object of ax
-            self.graph.append([ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(energy)])
-
-            # set graph boundaries
-            self.x_max, self.x_min = self.limit_setter(x[:, 0], self.x_max, self.x_min)
-            self.y_max, self.y_min = self.limit_setter(y[:, 0], self.y_max, self.y_min)
-
-        # Set mo diagram lines clickable
-        for i in self.graph[1]:
-            i.set_picker(5)
-
-        # Limits of the graph
-        ax.set_xlim(self.x_min-1, self.x_max+2)
-        ax.set_ylim(self.y_min-2, self.y_max+2)
-        # Make lines between AOs to MOs
-        self.connect_lines(self.orb_coor, ax, self.graph[1], self._data.coeff)
-
-        for i in self.connection_lines.values():
-            for j in i:
-                j.set_visible(False)
-
-        def onpick(event):
-            """ Set event for the clicking of orbital line
+def graph_mos(fig, ax, list_instance):
+    """
+    Draws diagram(s)
     
-            Clicking should result in the annotation (orbital energy) and
-            the connectivity between orbitals of different MO diagram to appear
-    
-            """
+    Parameters
+    ----------
+    args: np.ndarray
+        energies to be graphed
+    """
 
-            orbital = event.artist
-            lines = self.connecting_lines[orbital]
-            vis = [not i.get_visible() for i in lines]
-            [j.set_visible(i) for i in vis for j in lines]
+    # fig, ax = plt.subplots()
+    end = 0
 
-            fig.canvas.draw()
+    x_max, x_min = 0, 0
+    y_max, ymin = 0, 0
+    for mo in list_instance:
+        x, y, line_color = mo.line_data()
+        # shift graphs, except the first one
+        if end != 0:
+            x += (np.abs(np.min(x)) + np.max(x)) / 2 + 2
+            x += end
+        end = np.max(x)+1
 
-        fig.canvas.mpl_connect('pick_event', onpick)
-        plt.show()
+        # TODO: Better way to do this
+        # self.orb_coor.append([(x_start, x_start + x_length, (y_start + y_start + y_length) / 2)
+        #                       for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
+
+        # if i == 0:
+        #     self.orb_coor.append([(x_start + x_length, (y_start + y_start + y_length)/2)
+        #                 for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
+        #     # print "AO1"
+        #     # print self.orb_coor
+        # elif i == 1:
+        #     self.orb_coor.append([(x_start, x_start + x_length, (y_start + y_start + y_length) / 2)
+        #                            for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
+        #     # print "MO"
+        #     # print self.orb_coor[1]
+        # elif i == 2:
+        #     self.orb_coor.append([(x_start, (y_start + y_start + y_length) / 2)
+        #                            for ((x_start, x_length), (y_start, y_length)) in zip(x, y)])
+        #     # print "AO2"
+        #     # print self.orb_coor[2]
+
+        # Each line in is an object of ax
+        # self.graph.append([ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(energy)])
+        # graph = [ax.broken_barh([x[i]], y[i], facecolor=color[i]) for i, j in enumerate(mo.mo_energies)]
+        for a, _ in enumerate(mo.mo_energies):
+            lines = matplotlib.lines.Line2D(x[a], y[a], color=line_color[a])
+            ax.add_line(lines)
+        x_max, x_min = limit_setter(x[:, 0], mo.x_max, mo.x_min)
+        y_max, y_min = limit_setter(y[:, 0], mo.y_max, mo.y_min)
+
+    # Set mo diagram lines clickable
+    # for i in self.graph[1]:
+    #     i.set_picker(5)
+
+    # Limits of the graph
+    ax.set_xlim(x_min-2, x_max+2)
+    ax.set_ylim(y_min-2, y_max+2)
+    # No frame
+    ax.set_frame_on(False)
+    ax.axes.get_xaxis().set_visible(False)
+    # Make lines between AOs to MOs
+    # self.connect_lines(self.orb_coor, ax, self.graph[1], self._data.coeff)
+
+    # for i in self.connection_lines.values():
+    #     for j in i:
+    #         j.set_visible(False)
+
+    # def onpick(event):
+    #     """ Set event for the clicking of orbital line
+    #
+    #     Clicking should result in the annotation (orbital energy) and
+    #     the connectivity between orbitals of different MO diagram to appear
+    #
+    #     """
+    #
+    #     orbital = event.artist
+    #     lines = self.connecting_lines[orbital]
+    #     vis = [not i.get_visible() for i in lines]
+    #     [j.set_visible(i) for i in vis for j in lines]
+    #
+    #     fig.canvas.draw()
+    #
+    # fig.canvas.mpl_connect('pick_event', onpick)
+    # plt.show()
+
+
+def graph_just_mo_energies(fig, ax, energy_list, occupation_list, x_length=1, x_shift=1.1):
+    """
+    Draws multiple MO diagrams given energies and occupations as lists.
+    Matplot stuff has to be fed in
+
+    Parameters
+    ----------
+    energy_list: np.ndarray
+        energies to be graphed
+    """
+
+    # fig, ax = plt.subplots()
+    end = 0
+
+    x_max, x_min = 0, 0
+    y_max, y_min = 0, 0
+    for z, mo_energy in enumerate(energy_list):
+        ################### hard code line_data as fuck
+        degens = degenerate(mo_energy)
+        x_start = [-(d // 2) * x_shift - (d % 2) * x_length / 2.0 for d in degens]
+        x_data = []
+        for i, j in zip(degens, x_start):
+            if i != 1: x_data += [j + k * x_shift for k in range(int(i))]
+            if i == 1: x_data.append(j)
+
+        # zip start and length of x and y coordinates
+        x = np.asarray([[i, i + x_length] for i in x_data])
+        y = np.asarray([[i, i] for i in mo_energy])
+
+        # line colors as occupation
+        line_color = []
+        # print occupation_list[0]
+        # print z
+        # print mo_energy
+        for i in occupation_list[z]:
+            if i == 2 or i == 1:
+                line_color.append("green")
+            # elif i == 1:
+            #     line_color.append("yellow")
+            elif i == 0:
+                line_color.append("red")
+            # Should not happen
+            else:
+                line_color.append("blue")
+        tuple(line_color)
+        ###########################################
+        if z == 2:
+            print x
+        if end != 0:
+            x += (np.abs(np.min(x)) + np.max(x)) / 2 + 2
+            x += end
+        end = np.max(x) + 1
+        if z == 2:
+            print x
+        for a, _ in enumerate(mo_energy):
+            lines = matplotlib.lines.Line2D(x[a], y[a], color=line_color[a])
+            lines.set_lw(2.0)
+            ax.add_line(lines)
+        x_max, x_min = limit_setter(x[:, 0], x_max, x_min)
+        y_max, y_min = limit_setter(y[:, 0], y_max, y_min)
+
+
+    # Limits of the graph
+    ax.set_xlim(x_min - 2, x_max + 2)
+    ax.set_ylim(y_min - 2, y_max + 2)
+    # No frame
+    ax.set_frame_on(False)
+    ax.axes.get_xaxis().set_visible(False)
+
+def limit_setter(coordinate, attr_max, attr_min):
+    """
+    Sets x and y boundaries for the graph
+
+    Parameters
+    ----------
+    coordinate: list
+        list of starting point (either x or y coordinates) for the line
+    attr_max: int or float
+        attribute for maximum x or y coordinate
+    attr_min: int or float
+        attribute for minimum x or y coordinate
+
+    Returns
+    -------
+    attr_max, attr_min
+
+    """
+
+    for point in coordinate:
+        if point > attr_max:
+            attr_max = point
+        if point < attr_min:
+            attr_min = point
+    return attr_max, attr_min
 
 def degenerate(energies, tol=0.01):
     """
